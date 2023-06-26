@@ -2,7 +2,6 @@ const express = require("express");
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 const date = require(__dirname + "/date.js");
-// console.log(date());
 require("dotenv").config();
 
 const app = express();
@@ -24,7 +23,13 @@ const itemsSchema = new mongoose.Schema({
     name: String,
 });
 
+const listSchema = new mongoose.Schema({
+    name: String,
+    items: [itemsSchema],
+});
+
 const Item = mongoose.model("Item", itemsSchema);
+const List = mongoose.model("List", listSchema);
 
 const item1 = new Item({
     name: "Welcome to ToDoList.",
@@ -33,7 +38,7 @@ const item2 = new Item({
     name: "Hit + button to add new item.",
 });
 const item3 = new Item({
-    name: "Hit <-- button to delete item.",
+    name: "Hit <— button to delete item.",
 });
 
 const defaultItem = [item1, item2, item3];
@@ -41,7 +46,7 @@ const defaultItem = [item1, item2, item3];
 app.get("/", async function (req, res) {
     const day = date();
 
-    const query = await Item.find({});
+    const query = await Item.find({}).exec();
     if (query.length === 0) {
         Item.insertMany(defaultItem)
             .then(function () {
@@ -60,6 +65,29 @@ app.get("/", async function (req, res) {
     }
 });
 
+app.get("/:customListName", async function (req, res) {
+    const customListName = req.params.customListName;
+
+    const query = await List.findOne({ name: customListName }).exec();
+    // console.log(query);
+    if (!query) {
+        console.log("List doesn't exist");
+        //Create a new list
+        const list = new List({
+            name: customListName,
+            items: defaultItem,
+        });
+        list.save();
+        res.redirect("/" + customListName);
+    } else {
+        //show the existing list
+        res.render("list", {
+            listTitle: query.name.toUpperCase(),
+            listItems: query.items,
+        });
+    }
+});
+
 app.post("/", (req, res) => {
     // console.log(req.body);
     const itemName = req.body.newItem;
@@ -67,26 +95,9 @@ app.post("/", (req, res) => {
         name: itemName,
     });
 
-    if (req.body.list === "Work List") {
-        // workItems.push(newItem);
-        res.redirect("/work");
-    } else {
-        item.save()
-            .then(function () {
-                console.log("Successfully saved new item to DB");
-            })
-            .catch(function (err) {
-                console.log(err);
-            });
-        res.redirect("/");
-    }
-});
+    item.save();
 
-app.get("/work", (req, res) => {
-    res.render("list", {
-        listTitle: "Work List",
-        listItems: workItems,
-    });
+    res.redirect("/");
 });
 
 app.post("/delete", async (req, res) => {
