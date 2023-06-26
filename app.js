@@ -28,9 +28,12 @@ const listSchema = new mongoose.Schema({
     items: [itemsSchema],
 });
 
+//Schema for items in the list
 const Item = mongoose.model("Item", itemsSchema);
+//Schema for different lists
 const List = mongoose.model("List", listSchema);
 
+//Some default items
 const item1 = new Item({
     name: "Welcome to ToDoList.",
 });
@@ -43,11 +46,12 @@ const item3 = new Item({
 
 const defaultItem = [item1, item2, item3];
 
-app.get("/", async function (req, res) {
-    const day = date();
+//getting current date
+const day = date();
 
-    const query = await Item.find({}).exec();
-    if (query.length === 0) {
+app.get("/", async function (req, res) {
+    const foundItem = await Item.find({}).exec();
+    if (foundItem.length === 0) {
         Item.insertMany(defaultItem)
             .then(function () {
                 console.log("Successfully saved items to DB");
@@ -57,10 +61,10 @@ app.get("/", async function (req, res) {
             });
         res.redirect("/");
     } else {
-        // console.log(query);
+        // console.log(foundList);
         res.render("list", {
             listTitle: day,
-            listItems: query,
+            listItems: foundItem,
         });
     }
 });
@@ -68,9 +72,9 @@ app.get("/", async function (req, res) {
 app.get("/:customListName", async function (req, res) {
     const customListName = req.params.customListName;
 
-    const query = await List.findOne({ name: customListName }).exec();
-    // console.log(query);
-    if (!query) {
+    const foundList = await List.findOne({ name: customListName }).exec();
+
+    if (!foundList) {
         console.log("List doesn't exist");
         //Create a new list
         const list = new List({
@@ -82,34 +86,53 @@ app.get("/:customListName", async function (req, res) {
     } else {
         //show the existing list
         res.render("list", {
-            listTitle: query.name.toUpperCase(),
-            listItems: query.items,
+            listTitle: foundList.name.toUpperCase(),
+            listItems: foundList.items,
         });
     }
 });
 
-app.post("/", (req, res) => {
-    // console.log(req.body);
+app.post("/", async function (req, res) {
     const itemName = req.body.newItem;
+    const listName = req.body.list.toLowerCase();
     const item = new Item({
         name: itemName,
     });
 
-    item.save();
+    if (listName === day.toLowerCase()) {
+        item.save();
+        res.redirect("/");
+    } else {
+        const foundList = await List.findOne({ name: listName }).exec();
 
-    res.redirect("/");
+        foundList.items.push(item);
+        foundList.save();
+        res.redirect("/" + listName);
+    }
 });
 
 app.post("/delete", async (req, res) => {
     const itemID = req.body.checkbox;
-    await Item.deleteOne({ _id: itemID })
-        .then(function () {
-            console.log("Successfully deleted item from DB");
-        })
-        .catch(function (err) {
-            console.log(err);
-        });
-    res.redirect("/");
+    const listName = req.body.listName.toLowerCase();
+
+    if (listName === day.toLowerCase()) {
+        await Item.deleteOne({ _id: itemID })
+            .then(function () {
+                console.log("Successfully deleted item from DB");
+            })
+            .catch(function (err) {
+                console.log(err);
+            });
+        res.redirect("/");
+    } else {
+        const query = await List.findOneAndUpdate(
+            { name: listName },
+            { $pull: { items: { _id: itemID } } }
+        );
+        console.log(query);
+
+        res.redirect("/" + listName);
+    }
 });
 
 app.listen(PORT, function () {
