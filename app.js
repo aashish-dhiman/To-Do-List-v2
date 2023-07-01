@@ -15,7 +15,9 @@ app.use(
 
 app.set("view engine", "ejs");
 
-mongoose.connect("mongodb://127.0.0.1:27017/toDoListDB", {
+const mongodb_URI = process.env.MONGODB_URI;
+
+mongoose.connect(mongodb_URI, {
     useNewUrlParser: true,
 });
 
